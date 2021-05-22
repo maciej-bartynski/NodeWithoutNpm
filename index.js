@@ -5,7 +5,7 @@ const { URL } = require("url");
 const StringDecoder = require("string_decoder").StringDecoder;
 const fs = require("fs");
 const env = require("./config");
-const router = require("./lib/handlers");
+const router = require("./router");
 
 // define server handler
 const serverHandler = (origin) => (req, res) => {
