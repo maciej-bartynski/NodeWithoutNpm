@@ -1,20 +1,20 @@
 const sampleHandler = require("./sample");
 const pingHandler = require("./ping");
-//const tokensHandler = require("./tokens");
 const usersHandler = require("./users");
+const loginHandler = require("./login");
 
 const ROUTES = {
   sample: "/sample",
   ping: "/ping",
   users: "/users",
-  //tokens: "/tokens",
+  login: "/login"
 };
 
 const HANDLERS = {
   sample: sampleHandler,
   ping: pingHandler,
   users: usersHandler,
-  //tokens: tokensHandler,
+  login: loginHandler
 };
 
 const router = {

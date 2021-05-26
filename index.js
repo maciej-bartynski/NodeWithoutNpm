@@ -6,6 +6,7 @@ const StringDecoder = require("string_decoder").StringDecoder;
 const fs = require("fs");
 const env = require("./config");
 const router = require("./router");
+const tokenisation = require("./lib/tokenisation");
 
 // define server handler
 const serverHandler = (origin) => (req, res) => {
@@ -48,12 +49,45 @@ const serverHandler = (origin) => (req, res) => {
       requestData.params = parsedParams;
     } catch {}
 
-    chosenRequestHandler(requestData, (status = 200, data) => {
-      const payload = typeof data === "object" ? data : {};
-      res.setHeader("Content-Type", "application/json");
-      res.writeHead(status);
-      res.end(JSON.stringify(payload));
-    });
+    requestData.authorizedUser = null;
+    try {
+      const token = headers.cookie.split("=")[1];
+      tokenisation.deserializeUser(token, (err, user) => {
+        if (!err && user) {
+          requestData.authorizedUser = user;
+          chosenRequestHandler(requestData, (status = 200, data) => {
+            const payload = typeof data === "object" ? data : {};
+            if (payload.token) {
+              res.setHeader("Set-Cookie", [`authorization=${payload.token}`]);
+            }
+            res.setHeader("Content-Type", "application/json");
+            res.writeHead(status);
+            res.end(JSON.stringify(payload));
+          });
+          
+        } else {
+          chosenRequestHandler(requestData, (status = 200, data) => {
+            const payload = typeof data === "object" ? data : {};
+            if (payload.token) {
+              res.setHeader("Set-Cookie", [`authorization=${payload.token}`]);
+            }
+            res.setHeader("Content-Type", "application/json");
+            res.writeHead(status);
+            res.end(JSON.stringify(payload));
+          });
+        }
+      });
+    } catch{
+      chosenRequestHandler(requestData, (status = 200, data) => {
+        const payload = typeof data === "object" ? data : {};
+        if (payload.token) {
+          res.setHeader("Set-Cookie", [`authorization=${payload.token}`]);
+        }
+        res.setHeader("Content-Type", "application/json");
+        res.writeHead(status);
+        res.end(JSON.stringify(payload));
+      });
+    }
   });
 };
 
