@@ -8,14 +8,11 @@ const env = require("./config");
 const router = require("./router");
 const tokenisation = require("./lib/tokenisation");
 
-// define server handler
+//define server handler
 const serverHandler = (origin) => (req, res) => {
   const stringDecoder = new StringDecoder("utf-8");
   let payloadBuffer = "";
-
-  const { method, url, headers } = req;
-  const parsedUrl = new URL(url, origin);
-  const { searchParams, pathname } = parsedUrl;
+  const parsedUrl = new URL(req.url, origin);
 
   req.on("data", (data) => {
     payloadBuffer += stringDecoder.write(data);
@@ -25,69 +22,46 @@ const serverHandler = (origin) => (req, res) => {
     payloadBuffer += stringDecoder.end();
 
     const chosenRequestHandler =
-      typeof router[pathname] === "function"
-        ? router[pathname]
+      typeof router[parsedUrl.pathname] === "function"
+        ? router[parsedUrl.pathname]
         : router.notFound;
 
     const requestData = {
-      method,
-      path: pathname,
-      headers,
-      params: searchParams,
-      payload: payloadBuffer,
+      method: req.method,
+      path: parsedUrl.pathname,
+      headers: req.headers,
+      params: {},
+      payload: null,
+      authorisedUser: null,
     };
 
     try {
-      requestData.payload = JSON.parse(requestData.payload);
+      requestData.payload = JSON.parse(payloadBuffer);
     } catch {}
 
     try {
-      const parsedParams = {};
-      for (const [param, val] of requestData.params.entries()) {
-        parsedParams[param] = val;
+      for (const [param, val] of parsedUrl.searchParams.entries()) {
+        requestData.params[param] = val;
       }
-      requestData.params = parsedParams;
     } catch {}
 
-    requestData.authorizedUser = null;
-    try {
-      const token = headers.cookie.split("=")[1];
-      tokenisation.deserializeUser(token, (err, user) => {
-        if (!err && user) {
-          requestData.authorizedUser = user;
-          chosenRequestHandler(requestData, (status = 200, data) => {
-            const payload = typeof data === "object" ? data : {};
-            if (payload.token) {
-              res.setHeader("Set-Cookie", [`authorization=${payload.token}`]);
-            }
-            res.setHeader("Content-Type", "application/json");
-            res.writeHead(status);
-            res.end(JSON.stringify(payload));
-          });
-          
-        } else {
-          chosenRequestHandler(requestData, (status = 200, data) => {
-            const payload = typeof data === "object" ? data : {};
-            if (payload.token) {
-              res.setHeader("Set-Cookie", [`authorization=${payload.token}`]);
-            }
-            res.setHeader("Content-Type", "application/json");
-            res.writeHead(status);
-            res.end(JSON.stringify(payload));
-          });
-        }
-      });
-    } catch{
+    requestData.token = req.headers.cookie?.split("=")[1] || "";
+
+    tokenisation.deserializeUser(requestData.token, (err, user) => {
+      if (!err && user) requestData.authorisedUser = user;
+
       chosenRequestHandler(requestData, (status = 200, data) => {
         const payload = typeof data === "object" ? data : {};
+
         if (payload.token) {
           res.setHeader("Set-Cookie", [`authorization=${payload.token}`]);
         }
+
         res.setHeader("Content-Type", "application/json");
         res.writeHead(status);
         res.end(JSON.stringify(payload));
       });
-    }
+    });
   });
 };
 
